@@ -16,7 +16,7 @@ STATE_FILE = os.path.join(BASE_DIR, "file_state.json")
 
 # Email settings: set these as environment variables
 EMAIL_SENDER = os.getenv("raginimohite2011@gmail.com")
-EMAIL_PASSWORD = os.getenv("wkqhuixeuzajjmyz")
+EMAIL_PASSWORD = os.getenv("abcdefghijklm")
 EMAIL_RECEIVER = os.getenv("hrishikharade096@gmail.com")
 
 logging.basicConfig(
