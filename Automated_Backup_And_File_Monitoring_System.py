@@ -1,5 +1,4 @@
 import os
-import json
 import shutil
 import hashlib
 import logging
@@ -8,14 +7,12 @@ import time
 import schedule
 from email.message import EmailMessage
 
-# Project folders
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.abspath(_file_))
 SOURCE = os.path.join(BASE_DIR, "my_files")
 BACKUP = os.path.join(BASE_DIR, "Backup")
-STATE_FILE = os.path.join(BASE_DIR, "file_state.json")
+STATE_FILE = os.path.join(BASE_DIR, "file_state.txt")
 
-# Email settings: set these as environment variables
-EMAIL_SENDER = os.getenv("Email_SENDER")
+EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER")
 
@@ -38,8 +35,8 @@ def file_hash(path):
 
 def send_email(events):
     if not all([EMAIL_SENDER, EMAIL_PASSWORD, EMAIL_RECEIVER]):
-        logging.warning("Email not configured; alert not sent.")
-        print("Email not configured. Set email environment variables.")
+        logging.warning("Email not configured.")
+        print("Email not configured.")
         return
 
     try:
@@ -47,40 +44,39 @@ def send_email(events):
         msg["Subject"] = "Backup Monitoring Alert"
         msg["From"] = EMAIL_SENDER
         msg["To"] = EMAIL_RECEIVER
-        msg.set_content(
-            "Backup monitoring report:\n\n" + "\n".join(events)
-        )
+        msg.set_content("\n".join(events))
 
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls()
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
             server.send_message(msg)
 
-        logging.info("Email alert sent successfully.")
+        logging.info("Email sent successfully.")
 
     except Exception as error:
         logging.error(f"Email failed: {error}")
-        print("Email could not be sent. Check email settings.")
+        print("Email could not be sent.")
 
 
 def backup_files():
     if not os.path.isdir(SOURCE):
-        logging.error("Source folder not found: " + SOURCE)
         print("ERROR: my_files folder not found!")
+        logging.error("Source folder not found.")
         return
 
     os.makedirs(BACKUP, exist_ok=True)
 
-    # Read previously scanned file names
     previous_exists = os.path.exists(STATE_FILE)
+
     try:
         with open(STATE_FILE, "r", encoding="utf-8") as f:
-            previous_files = set(json.load(f))
+            previous_files = set(
+                line.rstrip("\n") for line in f
+            )
     except FileNotFoundError:
         previous_files = set()
-    except (json.JSONDecodeError, OSError) as error:
-        logging.error(f"Could not read file state: {error}")
-        print("Could not read file_state.json; scan stopped.")
+    except OSError as error:
+        logging.error(f"Could not read state: {error}")
         return
 
     current_files = set()
@@ -91,6 +87,7 @@ def backup_files():
             source_path = os.path.join(root, name)
             relative = os.path.relpath(source_path, SOURCE)
             current_files.add(relative)
+
             backup_path = os.path.join(BACKUP, relative)
 
             try:
@@ -111,22 +108,23 @@ def backup_files():
             except OSError as error:
                 logging.error(f"File error ({relative}): {error}")
 
-    # Detect deletions only after the first successful baseline scan
     if previous_exists:
         for relative in sorted(previous_files - current_files):
             event = f"Source file deleted: {relative}"
             events.append(event)
             logging.warning(event)
 
-    # Save current file list for the next scan
     try:
         temp_state = STATE_FILE + ".tmp"
+
         with open(temp_state, "w", encoding="utf-8") as f:
-            json.dump(sorted(current_files), f, indent=2)
+            for relative in sorted(current_files):
+                f.write(relative + "\n")
+
         os.replace(temp_state, STATE_FILE)
+
     except OSError as error:
-        logging.error(f"Could not save file state: {error}")
-        print("Could not save file state; check backup.log.")
+        logging.error(f"Could not save state: {error}")
         return
 
     if events:
@@ -138,8 +136,8 @@ def backup_files():
     print("Backup scan completed.")
 
 
-# Run once immediately, then every minute
 print("Backup Monitoring System Started!")
+
 backup_files()
 schedule.every(1).minutes.do(backup_files)
 
